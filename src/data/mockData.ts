@@ -1,0 +1,60 @@
+// Example mock data for testing the calculator
+export const mockSkins = [
+	{
+		id: "1",
+		name: "AK-47 | Redline",
+		rarity: "Classified" as const,
+		exterior: "Field-Tested" as const,
+		float: 0.25,
+		price: 45.5,
+		statTrak: false,
+		collection: "The Phoenix Collection",
+	},
+	{
+		id: "2",
+		name: "M4A4 | Asiimov",
+		rarity: "Covert" as const,
+		exterior: "Field-Tested" as const,
+		float: 0.28,
+		price: 85.0,
+		statTrak: false,
+		collection: "The Phoenix Collection",
+	},
+	{
+		id: "3",
+		name: "AWP | Redline",
+		rarity: "Classified" as const,
+		exterior: "Field-Tested" as const,
+		float: 0.22,
+		price: 12.5,
+		statTrak: false,
+		collection: "The Phoenix Collection",
+	},
+];
+
+export const mockOutcomes = [
+	{
+		id: "outcome-1",
+		name: "M4A1-S | Cyrex",
+		rarity: "Classified" as const,
+		exterior: "Factory New" as const,
+		minFloat: 0.0,
+		maxFloat: 0.08,
+		price: 125.0,
+		probability: 0.25,
+		statTrak: false,
+		collection: "The Chroma Collection",
+	},
+	{
+		id: "outcome-2",
+		name: "AK-47 | Vulcan",
+		rarity: "Classified" as const,
+		exterior: "Factory New" as const,
+		minFloat: 0.0,
+		maxFloat: 0.1,
+		price: 380.0,
+		probability: 0.15,
+		statTrak: false,
+		collection: "The Huntsman Collection",
+	},
+];

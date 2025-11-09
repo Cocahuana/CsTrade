@@ -4,11 +4,11 @@ import type { InventoryItem, PriceData } from "../../types/steam";
 import { findOptimalTradeUps } from "../../utils/inventoryOptimizer";
 
 const defaultSettings: OptimizerSettings = {
-	minProfitability: 10, // 10% minimum profit
-	maxRisk: "medium",
-	maxCost: 1000, // $1000 max
+	minProfitability: 0, // Accept any profit (changed from 10%)
+	maxRisk: "high", // Allow high risk trades (changed from "medium")
+	maxCost: 100000, // Very high max cost (changed from $1000)
 	allowStatTrak: true,
-	minOddsToProfit: 30, // 30% minimum chance to profit
+	minOddsToProfit: 0, // Accept any odds (changed from 30%)
 };
 
 const initialState: OptimizerState = {

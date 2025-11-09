@@ -1,0 +1,86 @@
+import { DataTypes } from 'sequelize';
+
+export default function (sequelize) {
+	const Price = sequelize.define(
+		'Price',
+		{
+			id: {
+				type: DataTypes.UUID,
+				defaultValue: DataTypes.UUIDV4,
+				primaryKey: true,
+			},
+			marketHashName: {
+				type: DataTypes.STRING,
+				allowNull: false,
+				unique: true,
+				field: 'market_hash_name',
+			},
+			price: {
+				type: DataTypes.DECIMAL(10, 2),
+				allowNull: false,
+				defaultValue: 0,
+			},
+			lowestPrice: {
+				type: DataTypes.DECIMAL(10, 2),
+				allowNull: true,
+				field: 'lowest_price',
+			},
+			medianPrice: {
+				type: DataTypes.DECIMAL(10, 2),
+				allowNull: true,
+				field: 'median_price',
+			},
+			volume: {
+				type: DataTypes.INTEGER,
+				allowNull: true,
+				defaultValue: 0,
+			},
+			source: {
+				type: DataTypes.ENUM('steam', 'skinport', 'manual'),
+				defaultValue: 'steam',
+			},
+			updatedAt: {
+				type: DataTypes.DATE,
+				allowNull: false,
+				field: 'updated_at',
+			},
+			createdAt: {
+				type: DataTypes.DATE,
+				allowNull: false,
+				field: 'created_at',
+			},
+		},
+		{
+			tableName: 'prices',
+			timestamps: true,
+			underscored: true,
+			indexes: [
+				{
+					unique: true,
+					fields: ['market_hash_name'],
+				},
+				{
+					fields: ['updated_at'], // For cache expiration queries
+				},
+				{
+					fields: ['source'],
+				},
+			],
+		}
+	);
+
+	// Class methods
+	Price.isExpired = function (priceRecord, expirationMinutes = 60) {
+		const now = new Date();
+		const diff = now - new Date(priceRecord.updatedAt);
+		return diff > expirationMinutes * 60 * 1000;
+	};
+
+	// Instance methods
+	Price.prototype.needsUpdate = function (expirationMinutes = 60) {
+		return Price.isExpired(this, expirationMinutes);
+	};
+
+	return Price;
+}
+

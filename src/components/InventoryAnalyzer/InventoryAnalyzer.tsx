@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState, AppDispatch } from "../../store/store";
 import { useLazyGetInventoryWithProxyQuery } from "../../store/api/steamApi";
@@ -10,91 +10,159 @@ import {
 import InventoryGrid from "./InventoryGrid";
 import OptimalTradeUpsList from "./OptimalTradeUpsList";
 import OptimizerSettings from "./OptimizerSettings";
+import InventoryFilters, {
+	type InventoryFilterState,
+} from "./InventoryFilters";
 
 export default function InventoryAnalyzer() {
 	const dispatch = useDispatch<AppDispatch>();
 	const [steamId, setSteamId] = useState("");
+	const [filters, setFilters] = useState<InventoryFilterState>({
+		rarities: [],
+		exteriors: [],
+		collections: [],
+		statTrakOnly: false,
+		nonStatTrakOnly: false,
+		tradeableOnly: false,
+		nonTradeableOnly: false,
+		minFloat: 0,
+		maxFloat: 1,
+		minPrice: 0,
+		maxPrice: 10000,
+		searchText: "",
+	});
 	const [
 		fetchInventory,
 		{ isLoading: isLoadingInventory, error: inventoryError },
 	] = useLazyGetInventoryWithProxyQuery();
 
-	const { inventory, suggestions, isAnalyzing, error, settings } =
+	const { inventory, suggestions, isAnalyzing, error, settings, prices } =
 		useSelector((state: RootState) => state.optimizer);
 
-	const fetchSteamMarketPrices = async (items: any[]) => {
+	// Ref to track if prices have been initially fetched
+	const pricesFetchedRef = useRef(false);
+	const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+	// Function to fetch prices in batch using the backend endpoint
+	const fetchBatchPrices = async (marketHashNames: string[]) => {
 		try {
-			const priceMap: Record<string, any> = {};
+			console.log(
+				`💰 Fetching prices for ${marketHashNames.length} items using batch endpoint...`
+			);
+
+			const response = await fetch(
+				"http://localhost:5000/api/steam/market/prices/batch",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ marketHashNames }),
+				}
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const result = await response.json();
+
+			if (result.success && result.data) {
+				console.log(
+					`✅ Successfully fetched ${result.stats.fetched} prices (${result.stats.failed} failed)`
+				);
+
+				// Merge with existing prices
+				dispatch(setPrices({ ...prices, ...result.data }));
+				return result.data;
+			}
+		} catch (err) {
+			console.error("Failed to fetch batch prices:", err);
+		}
+		return {};
+	};
+
+	const fetchSteamMarketPrices = async (items: any[], limit?: number) => {
+		try {
 			const uniqueMarketHashNames = [
 				...new Set(items.map((item) => item.marketHashName)),
 			];
 
-			console.log(
-				`💰 Fetching prices for ${uniqueMarketHashNames.length} unique items from Steam Market...`
-			);
-
-			// Fetch prices with delay to avoid rate limiting
-			for (const marketHashName of uniqueMarketHashNames) {
-				try {
-					const response = await fetch(
-						`http://localhost:5000/api/steam/market/price/${encodeURIComponent(
-							marketHashName
-						)}`
-					);
-
-					if (response.ok) {
-						const result = await response.json();
-						if (result.success && result.data) {
-							// Parse price from string like "$1.23" to number 1.23
-							const lowestPrice = result.data.lowest_price
-								? parseFloat(
-										result.data.lowest_price.replace(
-											/[$,]/g,
-											""
-										)
-								  )
-								: 0;
-							const medianPrice = result.data.median_price
-								? parseFloat(
-										result.data.median_price.replace(
-											/[$,]/g,
-											""
-										)
-								  )
-								: 0;
-
-							priceMap[marketHashName] = {
-								marketHashName,
-								price: lowestPrice || medianPrice,
-								lowestPrice,
-								medianPrice,
-								volume: result.data.volume || 0,
-								source: "steam" as const,
-								timestamp: Date.now(),
-							};
-						}
-					}
-
-					// Rate limiting: wait 1.5 seconds between requests to avoid Steam blocking
-					await new Promise((resolve) => setTimeout(resolve, 1500));
-				} catch (err) {
-					console.warn(
-						`⚠️ Failed to fetch price for ${marketHashName}:`,
-						err
-					);
-				}
-			}
+			// Apply limit if specified
+			const hashNamesToFetch = limit
+				? uniqueMarketHashNames.slice(0, limit)
+				: uniqueMarketHashNames;
 
 			console.log(
-				`✅ Successfully fetched prices for ${
-					Object.keys(priceMap).length
-				} items`
+				`💰 Fetching prices for ${
+					hashNamesToFetch.length
+				} items from Steam Market${
+					limit ? ` (limit: ${limit})` : ""
+				}...`
 			);
-			dispatch(setPrices(priceMap));
+
+			// Use batch endpoint instead of one-by-one requests
+			await fetchBatchPrices(hashNamesToFetch);
+
+			pricesFetchedRef.current = true;
 		} catch (err) {
 			console.error("Failed to fetch market prices:", err);
 		}
 	};
+
+	// Debounced search handler - fetches prices for filtered items
+	useEffect(() => {
+		// Clear existing timer
+		if (searchDebounceTimerRef.current) {
+			clearTimeout(searchDebounceTimerRef.current);
+		}
+
+		// Only trigger if there's search text and we have inventory
+		if (
+			filters.searchText &&
+			inventory.length > 0 &&
+			pricesFetchedRef.current
+		) {
+			searchDebounceTimerRef.current = setTimeout(async () => {
+				console.log(
+					`🔍 Search detected: "${filters.searchText}" - fetching prices after 3s delay...`
+				);
+
+				// Filter items based on search
+				const matchingItems = inventory.filter((item) =>
+					item.name
+						.toLowerCase()
+						.includes(filters.searchText.toLowerCase())
+				);
+
+				// Fetch prices only for items that don't have prices yet
+				const itemsNeedingPrices = matchingItems.filter(
+					(item) => !prices[item.marketHashName]
+				);
+
+				if (itemsNeedingPrices.length > 0) {
+					console.log(
+						`   📦 Found ${itemsNeedingPrices.length} items needing prices`
+					);
+
+					// Use batch endpoint for better performance
+					const hashNamesToFetch = itemsNeedingPrices.map(
+						(item) => item.marketHashName
+					);
+					await fetchBatchPrices(hashNamesToFetch);
+				} else {
+					console.log(`   ✅ All matching items already have prices`);
+				}
+			}, 3000); // 3 second delay
+		}
+
+		// Cleanup
+		return () => {
+			if (searchDebounceTimerRef.current) {
+				clearTimeout(searchDebounceTimerRef.current);
+			}
+		};
+	}, [filters.searchText, inventory, prices, dispatch]);
 
 	const handleFetchInventory = async () => {
 		if (!steamId.trim()) {
@@ -131,8 +199,8 @@ export default function InventoryAnalyzer() {
 			console.log("result: ", result);
 			dispatch(setInventory(result));
 
-			// Fetch prices from Steam Market for each unique item
-			await fetchSteamMarketPrices(result);
+			// Fetch prices from Steam Market - only first 10 items initially
+			await fetchSteamMarketPrices(result, 10);
 		} catch (err) {
 			console.error("Failed to fetch inventory:", err);
 		}
@@ -144,10 +212,61 @@ export default function InventoryAnalyzer() {
 			return;
 		}
 
-		await dispatch(
-			analyzeInventoryAction({ inventory, prices: {}, settings })
+		console.log(
+			`💰 Analyzing with ${Object.keys(prices).length} prices available`
 		);
+
+		await dispatch(analyzeInventoryAction({ inventory, prices, settings }));
 	};
+
+	// Extract available filter options from inventory
+	const availableRarities = useMemo(() => {
+		return [...new Set(inventory.map((item) => item.rarity))];
+	}, [inventory]);
+
+	const availableExteriors = useMemo(() => {
+		return [
+			...new Set(
+				inventory
+					.map((item) => item.exterior)
+					.filter((e): e is string => !!e)
+			),
+		];
+	}, [inventory]);
+
+	const availableCollections = useMemo(() => {
+		return [
+			...new Set(
+				inventory
+					.map((item) => item.collection)
+					.filter((c): c is string => !!c)
+			),
+		];
+	}, [inventory]);
+
+	// Merge prices into inventory items
+	const inventoryWithPrices = useMemo(() => {
+		console.log(
+			`💰 Merging prices: ${
+				Object.keys(prices).length
+			} prices available for ${inventory.length} items`
+		);
+		const itemsWithPrices = inventory.map((item) => {
+			const priceData = prices[item.marketHashName];
+			return {
+				...item,
+				price: priceData?.price || item.price || 0,
+			};
+		});
+		const itemsWithActualPrices = itemsWithPrices.filter(
+			(item) => item.price > 0
+		);
+		console.log(
+			`   ✅ ${itemsWithActualPrices.length} items now have prices`
+		);
+		return itemsWithPrices;
+	}, [inventory, prices]);
+
 	console.log(inventory, suggestions, isAnalyzing, error, settings);
 	return (
 		<div className='space-y-6'>
@@ -321,10 +440,26 @@ export default function InventoryAnalyzer() {
 				</div>
 			)}
 
+			{/* Filters */}
+			{inventory.length > 0 && suggestions.length === 0 && (
+				<InventoryFilters
+					filters={filters}
+					onFiltersChange={setFilters}
+					availableRarities={availableRarities}
+					availableExteriors={availableExteriors}
+					availableCollections={availableCollections}
+				/>
+			)}
+
 			{/* Inventory Grid */}
 			{inventory.length > 0 &&
 				suggestions.length === 0 &&
-				!isAnalyzing && <InventoryGrid items={inventory} />}
+				!isAnalyzing && (
+					<InventoryGrid
+						items={inventoryWithPrices}
+						filters={filters}
+					/>
+				)}
 
 			{/* Empty State */}
 			{inventory.length === 0 && !isLoadingInventory && (

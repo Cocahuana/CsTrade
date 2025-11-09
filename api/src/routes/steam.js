@@ -1,7 +1,20 @@
 import express from "express";
 import fetch from "node-fetch";
+import db from "../models/index.js";
+import {
+	getAllCS2Items,
+	getItemsByCollection,
+	searchItems,
+} from "../data/cs2Items.js";
+import {
+	getPossibleOutcomes,
+	getItemsByCollectionAndRarity,
+	COLLECTION_ITEMS,
+} from "../data/collectionItems.js";
 
 const router = express.Router();
+const { Price } = db;
+const CACHE_EXPIRATION_MINUTES = parseInt(process.env.PRICE_CACHE_MINUTES) || 60;
 
 /**
  * GET /api/steam/inventory/:steamId
@@ -268,6 +281,176 @@ router.get("/market/price/:marketHashName", async (req, res, next) => {
 });
 
 /**
+ * POST /api/steam/market/prices/batch
+ * Fetches market prices for multiple items from Steam
+ * Now uses database caching for improved performance
+ *
+ * @body {Array<string>} marketHashNames - Array of market hash names
+ * @returns {Object} Object with prices keyed by market hash name
+ */
+router.post("/market/prices/batch", async (req, res, next) => {
+	// NOTE: This endpoint now delegates to /api/prices/batch
+	// which handles database caching automatically
+	// We keep this endpoint for backward compatibility
+	try {
+		const { marketHashNames } = req.body;
+
+		if (!Array.isArray(marketHashNames) || marketHashNames.length === 0) {
+			return res.status(400).json({
+				success: false,
+				error: "marketHashNames must be a non-empty array",
+			});
+		}
+
+		if (marketHashNames.length > 100) {
+			return res.status(400).json({
+				success: false,
+				error: "Batch size limited to 100 items",
+			});
+		}
+
+		console.log(
+			`💰 Batch fetching prices for ${marketHashNames.length} items (with DB cache)...`
+		);
+
+		// 1. Get from cache
+		const cachedPrices = await Price.findAll({
+			where: {
+				marketHashName: marketHashNames,
+			},
+		});
+
+		const priceMap = {};
+		const needsFetch = [];
+
+		// 2. Check cache validity
+		for (const marketHashName of marketHashNames) {
+			const cached = cachedPrices.find(
+				(p) => p.marketHashName === marketHashName
+			);
+
+			if (cached && !cached.needsUpdate(CACHE_EXPIRATION_MINUTES)) {
+				priceMap[marketHashName] = {
+					marketHashName: cached.marketHashName,
+					price: parseFloat(cached.price),
+					lowestPrice: cached.lowestPrice
+						? parseFloat(cached.lowestPrice)
+						: null,
+					medianPrice: cached.medianPrice
+						? parseFloat(cached.medianPrice)
+						: null,
+					volume: cached.volume,
+					source: cached.source,
+					timestamp: cached.updatedAt.getTime(),
+				};
+			} else {
+				needsFetch.push(marketHashName);
+			}
+		}
+
+		console.log(`  ✅ ${Object.keys(priceMap).length} from cache`);
+		console.log(`  ⚠️ ${needsFetch.length} need fetching from Steam`);
+
+		// 3. Fetch missing/expired
+		const errors = [];
+		const appId = 730;
+
+		for (let i = 0; i < needsFetch.length; i++) {
+			const marketHashName = needsFetch[i];
+
+			try {
+				const steamUrl = `https://steamcommunity.com/market/priceoverview/?appid=${appId}&currency=1&market_hash_name=${encodeURIComponent(
+					marketHashName
+				)}`;
+
+				const response = await fetch(steamUrl, {
+					headers: {
+						"User-Agent":
+							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+						Accept: "application/json",
+					},
+				});
+
+				if (response.ok) {
+					const data = await response.json();
+
+					const lowestPrice = data.lowest_price
+						? parseFloat(data.lowest_price.replace(/[$,]/g, ""))
+						: null;
+					const medianPrice = data.median_price
+						? parseFloat(data.median_price.replace(/[$,]/g, ""))
+						: null;
+					const price = lowestPrice || medianPrice || 0;
+
+					// Update or create in DB
+					await Price.upsert({
+						marketHashName,
+						price,
+						lowestPrice,
+						medianPrice,
+						volume: data.volume || 0,
+						source: "steam",
+					});
+
+					priceMap[marketHashName] = {
+						marketHashName,
+						price,
+						lowestPrice,
+						medianPrice,
+						volume: data.volume || 0,
+						source: "steam",
+						timestamp: Date.now(),
+					};
+
+					console.log(
+						`  ✅ [${i + 1}/${needsFetch.length}] ${marketHashName}: $${price}`
+					);
+				} else {
+					console.warn(`  ⚠️ Failed: ${marketHashName} (${response.status})`);
+					errors.push({
+						marketHashName,
+						error: `HTTP ${response.status}`,
+					});
+				}
+
+				// Rate limiting
+				if (i < needsFetch.length - 1) {
+					await new Promise((resolve) => setTimeout(resolve, 1500));
+				}
+			} catch (error) {
+				console.error(`  ❌ Error: ${marketHashName}:`, error.message);
+				errors.push({
+					marketHashName,
+					error: error.message,
+				});
+			}
+		}
+
+		console.log(
+			`✅ Batch complete: ${Object.keys(priceMap).length} total (${
+				cachedPrices.length - needsFetch.length + errors.length
+			} cached, ${needsFetch.length - errors.length} fetched, ${
+				errors.length
+			} failed)`
+		);
+
+		res.json({
+			success: true,
+			data: priceMap,
+			errors: errors.length > 0 ? errors : undefined,
+			stats: {
+				requested: marketHashNames.length,
+				fetched: Object.keys(priceMap).length,
+				failed: errors.length,
+			},
+		});
+	} catch (error) {
+		console.error("❌ Error in batch price fetch:", error.message);
+		next(error);
+	}
+});
+
+/**
  * GET /api/steam/user/:steamId
  * Fetches user profile information (requires Steam Web API key)
  *
@@ -307,6 +490,241 @@ router.get("/user/:steamId", async (req, res, next) => {
 		});
 	} catch (error) {
 		console.error("❌ Error fetching user profile:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * GET /api/steam/items/all
+ * Gets all CS2 items metadata (collections, rarities, weapon types, etc.)
+ * This data is cached and doesn't require external API calls
+ *
+ * @returns {Object} CS2 items metadata
+ */
+router.get("/items/all", (req, res, next) => {
+	try {
+		console.log(`🎮 Fetching all CS2 items metadata...`);
+
+		const items = getAllCS2Items();
+
+		console.log(`✅ CS2 items metadata fetched successfully`);
+
+		res.json({
+			success: true,
+			data: items,
+		});
+	} catch (error) {
+		console.error("❌ Error fetching CS2 items:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * GET /api/steam/items/collection/:collectionName
+ * Gets items from a specific collection
+ *
+ * @param {string} collectionName - The collection name
+ * @returns {Object} Collection items
+ */
+router.get("/items/collection/:collectionName", (req, res, next) => {
+	try {
+		const { collectionName } = req.params;
+
+		console.log(`🎮 Fetching items from collection: ${collectionName}`);
+
+		const items = getItemsByCollection(collectionName);
+
+		res.json({
+			success: true,
+			data: items,
+		});
+	} catch (error) {
+		console.error("❌ Error fetching collection items:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * GET /api/steam/items/search?q=query
+ * Searches for items by name
+ *
+ * @query {string} q - Search query
+ * @returns {Object} Search results
+ */
+router.get("/items/search", (req, res, next) => {
+	try {
+		const { q } = req.query;
+
+		if (!q) {
+			return res.status(400).json({
+				success: false,
+				error: "Search query (q) is required",
+			});
+		}
+
+		console.log(`🔍 Searching items: ${q}`);
+
+		const results = searchItems(q);
+
+		res.json({
+			success: true,
+			data: results,
+		});
+	} catch (error) {
+		console.error("❌ Error searching items:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * GET /api/steam/items/collection-items
+ * Gets all collection items database
+ *
+ * @returns {Object} All collection items
+ */
+router.get("/items/collection-items", (req, res, next) => {
+	try {
+		console.log(`📚 Fetching collection items database...`);
+
+		res.json({
+			success: true,
+			data: COLLECTION_ITEMS,
+		});
+	} catch (error) {
+		console.error("❌ Error fetching collection items:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * POST /api/steam/floats
+ * Fetch float values for items using inspect links
+ * 
+ * NOTE: This requires integration with CSGOFloat API or similar service
+ * For now, this is a placeholder that returns mock data
+ *
+ * @body {Array<Object>} items - Array of items with inspect links
+ * @returns {Object} Float values keyed by asset ID
+ */
+router.post("/floats", async (req, res, next) => {
+	try {
+		const { items } = req.body;
+
+		if (!Array.isArray(items) || items.length === 0) {
+			return res.status(400).json({
+				success: false,
+				error: "items must be a non-empty array",
+			});
+		}
+
+		console.log(`🔢 Fetching float values for ${items.length} items...`);
+
+		// TODO: Integrate with CSGOFloat API or similar service
+		// Example: https://csgofloat.com/api/v1/
+		//
+		// For now, return placeholder data
+		const floatData = {};
+
+		items.forEach((item) => {
+			// Generate a random float value for demonstration
+			// In production, this would fetch from CSGOFloat API using inspect link
+			floatData[item.assetId] = {
+				assetId: item.assetId,
+				floatValue: Math.random(),
+				paintseed: Math.floor(Math.random() * 1000),
+				paintindex: Math.floor(Math.random() * 100),
+				// Add more data as needed
+			};
+		});
+
+		console.log(`✅ Float values fetched (mock data for now)`);
+
+		res.json({
+			success: true,
+			data: floatData,
+			note: "Float values are currently mock data. Integrate CSGOFloat API for real values.",
+		});
+	} catch (error) {
+		console.error("❌ Error fetching floats:", error.message);
+		next(error);
+	}
+});
+
+/**
+ * POST /api/steam/items/outcomes
+ * Calculate possible trade-up outcomes for given inputs
+ *
+ * @body {Array<Object>} inputs - Array of input items with collection and rarity
+ * @returns {Object} Possible outcome items
+ */
+router.post("/items/outcomes", (req, res, next) => {
+	try {
+		const { inputs } = req.body;
+
+		if (!Array.isArray(inputs) || inputs.length === 0) {
+			return res.status(400).json({
+				success: false,
+				error: "inputs must be a non-empty array",
+			});
+		}
+
+		console.log(`🎲 Calculating outcomes for ${inputs.length} input items...`);
+
+		// Group inputs by collection
+		const collectionCounts = {};
+		const inputRarity = inputs[0].rarity;
+
+		inputs.forEach((item) => {
+			const collection = item.collection || "Unknown";
+			if (!collectionCounts[collection]) {
+				collectionCounts[collection] = 0;
+			}
+			collectionCounts[collection]++;
+		});
+
+		// Get possible outcomes for each collection
+		const allOutcomes = [];
+		const outcomesByCollection = {};
+
+		Object.entries(collectionCounts).forEach(([collection, count]) => {
+			const possibleItems = getPossibleOutcomes(collection, inputRarity);
+
+			if (possibleItems.length > 0) {
+				const probability = count / inputs.length;
+
+				possibleItems.forEach((itemName) => {
+					allOutcomes.push({
+						name: itemName,
+						collection,
+						probability,
+						baseItem: itemName,
+					});
+				});
+
+				outcomesByCollection[collection] = {
+					items: possibleItems,
+					count,
+					probability,
+				};
+			}
+		});
+
+		console.log(`✅ Found ${allOutcomes.length} possible outcomes across ${Object.keys(outcomesByCollection).length} collections`);
+
+		res.json({
+			success: true,
+			data: {
+				outcomes: allOutcomes,
+				byCollection: outcomesByCollection,
+				stats: {
+					totalOutcomes: allOutcomes.length,
+					collectionsInvolved: Object.keys(outcomesByCollection).length,
+					inputRarity,
+				},
+			},
+		});
+	} catch (error) {
+		console.error("❌ Error calculating outcomes:", error.message);
 		next(error);
 	}
 });

@@ -1,7 +1,11 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import db from "./models/index.js";
 import steamRoutes from "./routes/steam.js";
+import pricesRoutes from "./routes/prices.js";
+import tradeupsRoutes from "./routes/tradeups.js";
+import usersRoutes from "./routes/users.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
 
@@ -32,23 +36,55 @@ app.get("/health", (req, res) => {
 
 // API Routes
 app.use("/api/steam", steamRoutes);
+app.use("/api/prices", pricesRoutes);
+app.use("/api/tradeups", tradeupsRoutes);
+app.use("/api/users", usersRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-	console.log(`🚀 CS Trades API Server running on port ${PORT}`);
-	console.log(
-		`📡 Frontend URL: ${
-			process.env.FRONTEND_URL || "http://localhost:3000"
-		}`
-	);
-	console.log(
-		`🔑 Steam API Key: ${
-			process.env.STEAM_API_KEY
-				? "✓ Configured"
-				: "✗ Not configured (optional)"
-		}`
-	);
-});
+// Initialize database and start server
+async function startServer() {
+	try {
+		// Test database connection
+		await db.sequelize.authenticate();
+		console.log("✅ Database connection established successfully");
+
+		// Sync models (only in development - use migrations in production)
+		if (process.env.NODE_ENV === "development") {
+			// alter: true updates tables without dropping them
+			// force: true drops and recreates (CAREFUL!)
+			await db.sequelize.sync({ alter: false });
+			console.log("✅ Database models synchronized");
+		}
+
+		// Start server
+		app.listen(PORT, () => {
+			console.log(`🚀 CS Trades API Server running on port ${PORT}`);
+			console.log(
+				`📡 Frontend URL: ${
+					process.env.FRONTEND_URL || "http://localhost:3000"
+				}`
+			);
+			console.log(
+				`🔑 Steam API Key: ${
+					process.env.STEAM_API_KEY
+						? "✓ Configured"
+						: "✗ Not configured (optional)"
+				}`
+			);
+			console.log(
+				`💾 Database: ${process.env.DB_NAME || "cstrades_dev"} @ ${
+					process.env.DB_HOST || "localhost"
+				}:${process.env.DB_PORT || 5432}`
+			);
+		});
+	} catch (error) {
+		console.error("❌ Unable to connect to the database:", error.message);
+		console.error("\n💡 Make sure PostgreSQL is running and configured correctly");
+		console.error("   Check your .env file for correct database credentials\n");
+		process.exit(1);
+	}
+}
+
+startServer();

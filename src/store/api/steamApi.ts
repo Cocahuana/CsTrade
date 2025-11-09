@@ -78,6 +78,8 @@ function processInventory(response: SteamInventoryResponse): InventoryItem[] {
 				imageUrl: `https://community.cloudflare.steamstatic.com/economy/image/${description.icon_url}`,
 				tradable: description.tradable === 1,
 				marketable: description.marketable === 1,
+				tradeableAfterDays:
+					description.market_tradable_restriction || 0,
 				collection: getCollection(description.tags),
 			};
 

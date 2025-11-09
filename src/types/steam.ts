@@ -72,6 +72,7 @@ export interface InventoryItem {
 	imageUrl: string;
 	tradable: boolean;
 	marketable: boolean;
+	tradeableAfterDays?: number; // Days until item becomes tradeable (0 if immediately tradeable)
 	collection?: string;
 	float?: number;
 	price?: number;

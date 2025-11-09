@@ -136,9 +136,12 @@ function calculateTradeUpStats(
 }
 
 // Get possible outcomes for given inputs
+// NOTE: This is a simplified version that doesn't require collection items database
+// For accurate results, use the backend API endpoint /api/steam/items/outcomes
 function getPossibleOutcomes(
 	inputs: InventoryItem[],
-	prices: Record<string, PriceData>
+	prices: Record<string, PriceData>,
+	allInventoryItems: InventoryItem[]
 ): PredictedOutcome[] {
 	// Group inputs by collection
 	const collectionCounts: Record<string, number> = {};
@@ -153,22 +156,86 @@ function getPossibleOutcomes(
 
 	if (!nextRarity) return [];
 
-	// For now, create mock outcomes based on collections
-	// In production, you'd query a database of actual CS2 skins
+	// Find actual items from inventory that could be outcomes
+	// (items with next rarity tier from the same collections)
+	const potentialOutcomes = allInventoryItems.filter((item) => {
+		// Must be next rarity tier
+		if (!item.rarity.includes(nextRarity)) return false;
+
+		// Must be from one of the input collections
+		const itemCollection = item.collection || "Unknown";
+		return itemCollection in collectionCounts;
+	});
+
+	// Remove duplicates by marketHashName
+	const uniqueOutcomes = Array.from(
+		new Map(
+			potentialOutcomes.map((item) => [item.marketHashName, item])
+		).values()
+	);
+
+	// If we found actual items from inventory, use them
+	if (uniqueOutcomes.length > 0) {
+		const outcomes: PredictedOutcome[] = uniqueOutcomes.map((item) => {
+			const collection = item.collection || "Unknown";
+			const probability =
+				(collectionCounts[collection] || 0) / inputs.length;
+
+			const price = prices[item.marketHashName]?.price || item.price || 0;
+
+			return {
+				name: item.name,
+				marketHashName: item.marketHashName,
+				rarity: item.rarity,
+				exterior: item.exterior || "Field-Tested",
+				collection,
+				probability,
+				estimatedPrice: price,
+				minFloat: 0.0,
+				maxFloat: 1.0,
+				imageUrl: item.imageUrl,
+			};
+		});
+
+		return outcomes;
+	}
+
+	// Fallback: Create estimated outcomes based on average prices
+	// Use the average price of next-tier items from inventory
+	const nextTierItems = allInventoryItems.filter((item) =>
+		item.rarity.includes(nextRarity)
+	);
+
+	// Estimate price based on tier multipliers (rough heuristic)
+	const avgInputPrice =
+		inputs.reduce(
+			(sum, item) =>
+				sum + (prices[item.marketHashName]?.price || item.price || 0),
+			0
+		) / inputs.length;
+
+	const avgNextTierPrice =
+		nextTierItems.length > 0
+			? nextTierItems.reduce(
+					(sum, item) =>
+						sum +
+						(prices[item.marketHashName]?.price || item.price || 0),
+					0
+			  ) / nextTierItems.length
+			: avgInputPrice * 3; // Rough 3x multiplier if no data
+
 	const outcomes: PredictedOutcome[] = Object.entries(collectionCounts).map(
 		([collection, count]) => {
 			const probability = count / inputs.length;
-			const marketHashName = `${collection} ${nextRarity} Item`; // Mock
-			const estimatedPrice = prices[marketHashName]?.price || 0;
 
 			return {
-				name: marketHashName,
-				marketHashName,
+				name: `${collection} - ${nextRarity}`,
+				marketHashName: `Estimated ${nextRarity}`,
 				rarity: nextRarity,
 				exterior: inputs[0].exterior || "Field-Tested",
 				collection,
 				probability,
-				estimatedPrice,
+				estimatedPrice: avgNextTierPrice,
 				minFloat: 0.0,
 				maxFloat: 1.0,
 				imageUrl: inputs[0].imageUrl,
@@ -187,28 +254,61 @@ export function findOptimalTradeUps(
 ): OptimalTradeUp[] {
 	const suggestions: OptimalTradeUp[] = [];
 	const groups = groupInventory(inventory);
+	console.log(suggestions, groups);
+	console.log("🔍 Starting trade-up analysis:");
+	console.log(`  - Total inventory items: ${inventory.length}`);
+	console.log(`  - Groups found: ${Object.keys(groups).length}`);
+	console.log(`  - Settings:`, settings);
 
 	// Iterate through each group
-	Object.entries(groups).forEach(([_key, items]) => {
+	Object.entries(groups).forEach(([key, items]) => {
 		// Skip if not enough items
-		if (items.length < 10) return;
+		if (items.length < 10) {
+			console.log(
+				`  ⚠️ Skipping group "${key}" - only ${items.length} items (need 10+)`
+			);
+			return;
+		}
+
+		console.log(
+			`  ✅ Processing group "${key}" with ${items.length} items`
+		);
 
 		// Generate combinations
 		let combinationIndex = 0;
+		let testedCombinations = 0;
+		let filteredByProfitability = 0;
+		let filteredByCost = 0;
+		let filteredByOdds = 0;
+
 		for (const combination of generateCombinations(items, 10)) {
 			combinationIndex++;
+			testedCombinations++;
 
 			// Get possible outcomes
-			const outcomes = getPossibleOutcomes(combination, prices);
+			const outcomes = getPossibleOutcomes(
+				combination,
+				prices,
+				inventory
+			);
 			if (outcomes.length === 0) continue;
 
 			// Calculate stats
 			const stats = calculateTradeUpStats(combination, outcomes, prices);
 
 			// Apply filters from settings
-			if (stats.profitability < settings.minProfitability) continue;
-			if (stats.totalCost > settings.maxCost) continue;
-			if (stats.oddsToProfit < settings.minOddsToProfit) continue;
+			if (stats.profitability < settings.minProfitability) {
+				filteredByProfitability++;
+				continue;
+			}
+			if (stats.totalCost > settings.maxCost) {
+				filteredByCost++;
+				continue;
+			}
+			if (stats.oddsToProfit < settings.minOddsToProfit) {
+				filteredByOdds++;
+				continue;
+			}
 
 			// Risk filter
 			const riskLevels = { low: 1, medium: 2, high: 3 };
@@ -232,7 +332,18 @@ export function findOptimalTradeUps(
 			// Limit suggestions for performance
 			if (suggestions.length >= 100) break;
 		}
+
+		console.log(`    - Tested ${testedCombinations} combinations`);
+		console.log(
+			`    - Filtered by profitability: ${filteredByProfitability}`
+		);
+		console.log(`    - Filtered by cost: ${filteredByCost}`);
+		console.log(`    - Filtered by odds: ${filteredByOdds}`);
+		console.log(`    - Valid suggestions: ${suggestions.length}`);
 	});
+
+	console.log(`\n📊 Analysis complete:`);
+	console.log(`  - Total suggestions found: ${suggestions.length}`);
 
 	// Sort by profitability (descending)
 	suggestions.sort((a, b) => b.stats.profitability - a.stats.profitability);
@@ -243,6 +354,12 @@ export function findOptimalTradeUps(
 	});
 
 	// Return top suggestions
+	const finalCount = suggestions.slice(
+		0,
+		settings.preferCollections ? 20 : 10
+	).length;
+	console.log(`  - Returning top ${finalCount} suggestions`);
+
 	return suggestions.slice(0, settings.preferCollections ? 20 : 10);
 }
 

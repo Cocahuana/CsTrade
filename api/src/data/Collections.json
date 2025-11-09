@@ -758,28 +758,103 @@
 		"Covert": ["M4A1-S | Chantico's Fire", "P2000 | Fire Elemental"]
 	},
 	"The Genesis Collection": {
-		"Consumer Grade": [],
-		"Industrial Grade": [],
-		"Mil-Spec Grade": [],
-		"Restricted": [],
-		"Classified": [],
-		"Covert": []
+		"Consumer Grade": [
+			"Dual Berettas | Hydro Strike",
+			"Nova | Dark Sigil",
+			"P2000 | Obsidian",
+			"PP-Bizon | Lumen",
+			"R8 Revolver | Junk Yard",
+			"Tec-9 | Blast From the Past",
+			"XM1014 | XOXO"
+		],
+		"Industrial Grade": [
+			"G3SG1 | Ancient Ritual",
+			"MAC-10 | Disco Tech",
+			"MP9 | Mount Fuji",
+			"P250 | Cyber Shell",
+			"Sawed-Off | Ancient Guardian",
+			"UMP-45 | Gold Bismuth"
+		],
+		"Mil-Spec Grade": [
+			"AUG | Carved Jade",
+			"Five-SeveN | Scrawl",
+			"Galil AR | Chromatic Aberration",
+			"Glock-18 | Block-18",
+			"M4A4 | Etch Lord"
+		],
+		"Restricted": [
+			"AWP | Duality",
+			"Desert Eagle | Printstream",
+			"USP-S | Ancient Visions"
+		],
+		"Classified": ["AK-47 | The Oligarch", "M4A4 | Full Throttle"],
+		"Covert": ["AK-47 | The Oligarch", "M4A4 | Full Throttle"]
 	},
 	"The Fever Collection": {
-		"Consumer Grade": [],
-		"Industrial Grade": [],
-		"Mil-Spec Grade": [],
-		"Restricted": [],
-		"Classified": [],
-		"Covert": []
+		"Consumer Grade": [
+			"Dual Berettas | Hydro Strike",
+			"G3SG1 | Ancient Ritual",
+			"Nova | Dark Sigil",
+			"P2000 | Obsidian",
+			"PP-Bizon | Lumen",
+			"R8 Revolver | Junk Yard",
+			"Tec-9 | Blast From the Past"
+		],
+		"Industrial Grade": [
+			"MAC-10 | Disco Tech",
+			"MP9 | Mount Fuji",
+			"P250 | Cyber Shell",
+			"Sawed-Off | Ancient Guardian",
+			"UMP-45 | Gold Bismuth",
+			"XM1014 | XOXO"
+		],
+		"Mil-Spec Grade": [
+			"AUG | Carved Jade",
+			"Five-SeveN | Scrawl",
+			"Galil AR | Chromatic Aberration",
+			"Glock-18 | Block-18",
+			"M4A4 | Etch Lord"
+		],
+		"Restricted": [
+			"AWP | Duality",
+			"Desert Eagle | Printstream",
+			"USP-S | Ancient Visions"
+		],
+		"Classified": ["AWP | Printstream", "FAMAS | Bad Trip"],
+		"Covert": ["AWP | Printstream", "FAMAS | Bad Trip"]
 	},
 	"The Train 2025 Collection": {
-		"Consumer Grade": [],
-		"Industrial Grade": [],
-		"Mil-Spec Grade": [],
-		"Restricted": [],
-		"Classified": [],
-		"Covert": []
+		"Consumer Grade": [
+			"G3SG1 | Ancient Ritual",
+			"Nova | Dark Sigil",
+			"P2000 | Obsidian",
+			"PP-Bizon | Runic",
+			"R8 Revolver | Junk Yard",
+			"Sawed-Off | Ancient Guardian",
+			"Tec-9 | Blast From the Past"
+		],
+		"Industrial Grade": [
+			"Dual Berettas | Dezastre",
+			"MAC-10 | Disco Tech",
+			"MAG-7 | BI83 Spectrum",
+			"P250 | Cyber Shell",
+			"UMP-45 | Gold Bismuth",
+			"XM1014 | XOXO"
+		],
+		"Mil-Spec Grade": [
+			"AUG | Carved Jade",
+			"Five-SeveN | Scrawl",
+			"Galil AR | Chromatic Aberration",
+			"M4A4 | Tooth Fairy",
+			"MP9 | Starlight Protector"
+		],
+		"Restricted": [
+			"AK-47 | Rat Rod",
+			"Desert Eagle | Ocean Drive",
+			"P90 | Ancient Earth"
+		],
+		"Classified": ["AWP | LongDog", "M4A4 | Hellish"],
+		"Covert": ["AWP | LongDog", "M4A4 | Hellish"]
 	},
 	"The Boreal Collection": {
 		"Consumer Grade": [],
@@ -838,12 +913,37 @@
 		"Covert": []
 	},
 	"The Anubis Collection": {
-		"Consumer Grade": [],
-		"Industrial Grade": [],
-		"Mil-Spec Grade": [],
-		"Restricted": [],
-		"Classified": [],
-		"Covert": []
+		"Consumer Grade": [
+			"G3SG1 | Ancient Ritual",
+			"Nova | Dark Sigil",
+			"P2000 | Obsidian",
+			"PP-Bizon | Runic",
+			"R8 Revolver | Junk Yard",
+			"Sawed-Off | Ancient Guardian",
+			"Tec-9 | Blast From the Past"
+		],
+		"Industrial Grade": [
+			"Dual Berettas | Dezastre",
+			"MAC-10 | Disco Tech",
+			"MAG-7 | BI83 Spectrum",
+			"P250 | Cyber Shell",
+			"UMP-45 | Gold Bismuth",
+			"XM1014 | XOXO"
+		],
+		"Mil-Spec Grade": [
+			"AUG | Carved Jade",
+			"Five-SeveN | Scrawl",
+			"Galil AR | Chromatic Aberration",
+			"M4A4 | Tooth Fairy",
+			"MP9 | Starlight Protector"
+		],
+		"Restricted": [
+			"AK-47 | Rat Rod",
+			"Desert Eagle | Ocean Drive",
+			"P90 | Ancient Earth"
+		],
+		"Classified": ["AWP | Duality", "USP-S | Ancient Visions"],
+		"Covert": ["AK-47 | Inheritance", "P90 | Run and Hide"]
 	},
 	"The 2021 Mirage Collection": {
 		"Consumer Grade": [],

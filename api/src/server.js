@@ -6,6 +6,10 @@ import steamRoutes from "./routes/steam.js";
 import pricesRoutes from "./routes/prices.js";
 import tradeupsRoutes from "./routes/tradeups.js";
 import usersRoutes from "./routes/users.js";
+import collectionsRoutes from "./routes/collections.js";
+import casesRoutes from "./routes/cases.js";
+import openingsRoutes from "./routes/openings.js";
+import creatorRoutes from "./routes/creator.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
 
@@ -39,6 +43,10 @@ app.use("/api/steam", steamRoutes);
 app.use("/api/prices", pricesRoutes);
 app.use("/api/tradeups", tradeupsRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/collections", collectionsRoutes);
+app.use("/api/cases", casesRoutes);
+app.use("/api/openings", openingsRoutes);
+app.use("/api/creator", creatorRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
@@ -81,8 +89,12 @@ async function startServer() {
 		});
 	} catch (error) {
 		console.error("❌ Unable to connect to the database:", error.message);
-		console.error("\n💡 Make sure PostgreSQL is running and configured correctly");
-		console.error("   Check your .env file for correct database credentials\n");
+		console.error(
+			"\n💡 Make sure PostgreSQL is running and configured correctly"
+		);
+		console.error(
+			"   Check your .env file for correct database credentials\n"
+		);
 		process.exit(1);
 	}
 }

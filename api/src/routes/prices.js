@@ -1,6 +1,10 @@
 import express from "express";
 import fetch from "node-fetch";
 import db from "../models/index.js";
+import {
+	fetchAllItemPrices,
+	updateItemPrices,
+} from "../services/priceFetcher.js";
 
 const router = express.Router();
 const { Price } = db;
@@ -12,7 +16,7 @@ const CACHE_EXPIRATION_MINUTES =
 /**
  * GET /api/prices/:marketHashName
  * Get price with database caching
- * 
+ *
  * 1. Check DB cache first
  * 2. If expired or not found, fetch from Steam
  * 3. Update DB cache
@@ -31,18 +35,31 @@ router.get("/:marketHashName", async (req, res, next) => {
 
 		// 2. Check if cache is valid
 		if (priceRecord && !priceRecord.needsUpdate(CACHE_EXPIRATION_MINUTES)) {
-			console.log(`  ✅ Cache HIT (age: ${Math.floor((Date.now() - new Date(priceRecord.updatedAt)) / 1000 / 60)}min)`);
+			console.log(
+				`  ✅ Cache HIT (age: ${Math.floor(
+					(Date.now() - new Date(priceRecord.updatedAt)) / 1000 / 60
+				)}min)`
+			);
+
+			// Format price display (show "N/A" for unavailable items)
+			const displayPrice =
+				parseFloat(priceRecord.price) === 0
+					? "N/A"
+					: parseFloat(priceRecord.price);
+			const displayLowest = priceRecord.lowestPrice
+				? parseFloat(priceRecord.lowestPrice)
+				: null;
+			const displayMedian = priceRecord.medianPrice
+				? parseFloat(priceRecord.medianPrice)
+				: null;
+
 			return res.json({
 				success: true,
 				data: {
 					marketHashName: priceRecord.marketHashName,
-					price: parseFloat(priceRecord.price),
-					lowestPrice: priceRecord.lowestPrice
-						? parseFloat(priceRecord.lowestPrice)
-						: null,
-					medianPrice: priceRecord.medianPrice
-						? parseFloat(priceRecord.medianPrice)
-						: null,
+					price: displayPrice,
+					lowestPrice: displayLowest,
+					medianPrice: displayMedian,
 					volume: priceRecord.volume,
 					source: priceRecord.source,
 					timestamp: priceRecord.updatedAt,
@@ -108,7 +125,7 @@ router.get("/:marketHashName", async (req, res, next) => {
 			success: true,
 			data: {
 				marketHashName,
-				price,
+				price: price === 0 ? "N/A" : price,
 				lowestPrice,
 				medianPrice,
 				volume: data.volume || 0,
@@ -126,7 +143,7 @@ router.get("/:marketHashName", async (req, res, next) => {
 /**
  * POST /api/prices/batch
  * Batch price fetching with intelligent caching
- * 
+ *
  * Returns cached prices immediately and fetches missing/expired ones
  */
 router.post("/batch", async (req, res, next) => {
@@ -140,7 +157,9 @@ router.post("/batch", async (req, res, next) => {
 			});
 		}
 
-		console.log(`💰 Batch price request for ${marketHashNames.length} items`);
+		console.log(
+			`💰 Batch price request for ${marketHashNames.length} items`
+		);
 
 		// 1. Get all from cache
 		const cachedPrices = await Price.findAll({
@@ -159,10 +178,15 @@ router.post("/batch", async (req, res, next) => {
 			);
 
 			if (cached && !cached.needsUpdate(CACHE_EXPIRATION_MINUTES)) {
-				// Valid cache
+				// Valid cache - format price display
+				const displayPrice =
+					parseFloat(cached.price) === 0
+						? "N/A"
+						: parseFloat(cached.price);
+
 				priceMap[marketHashName] = {
 					marketHashName: cached.marketHashName,
-					price: parseFloat(cached.price),
+					price: displayPrice,
 					lowestPrice: cached.lowestPrice
 						? parseFloat(cached.lowestPrice)
 						: null,
@@ -223,9 +247,11 @@ router.post("/batch", async (req, res, next) => {
 						source: "steam",
 					});
 
+					const displayPrice = price === 0 ? "N/A" : price;
+
 					priceMap[marketHashName] = {
 						marketHashName,
-						price,
+						price: displayPrice,
 						lowestPrice,
 						medianPrice,
 						volume: data.volume || 0,
@@ -233,11 +259,17 @@ router.post("/batch", async (req, res, next) => {
 						timestamp: Date.now(),
 						cached: false,
 					};
-
-					console.log(`  ✅ [${i + 1}/${needsFetch.length}] ${marketHashName}: $${price}`);
+					console.log(
+						`  ✅ [${i + 1}/${
+							needsFetch.length
+						}] ${marketHashName}: $${price}`
+					);
 				} else {
 					console.warn(`  ⚠️ Failed: ${marketHashName}`);
-					errors.push({ marketHashName, error: `HTTP ${response.status}` });
+					errors.push({
+						marketHashName,
+						error: `HTTP ${response.status}`,
+					});
 				}
 
 				// Rate limiting
@@ -257,7 +289,10 @@ router.post("/batch", async (req, res, next) => {
 			stats: {
 				requested: marketHashNames.length,
 				fetched: Object.keys(priceMap).length,
-				fromCache: Object.keys(priceMap).length - needsFetch.length + errors.length,
+				fromCache:
+					Object.keys(priceMap).length -
+					needsFetch.length +
+					errors.length,
 				fromSteam: needsFetch.length - errors.length,
 				failed: errors.length,
 			},
@@ -302,5 +337,88 @@ router.delete("/cache", async (req, res, next) => {
 	}
 });
 
-export default router;
+/**
+ * POST /api/prices/fetch-all
+ * Fetch prices for all collection items from Steam Market
+ *
+ * This is a LONG-RUNNING operation (20-40 minutes for ~1000 items)
+ *
+ * Query params:
+ * - skipGraffiti: boolean (default: true)
+ * - updateExisting: boolean (default: false)
+ * - limit: number (for testing, limits items processed)
+ */
+router.post("/fetch-all", async (req, res, next) => {
+	try {
+		const {
+			skipGraffiti = "true",
+			updateExisting = "false",
+			limit,
+		} = req.query;
 
+		console.log("🚀 Starting bulk price fetch...");
+		console.log(`  Skip graffiti: ${skipGraffiti}`);
+		console.log(`  Update existing: ${updateExisting}`);
+		if (limit) console.log(`  Limit: ${limit} items`);
+
+		const options = {
+			skipGraffiti: skipGraffiti === "true",
+			updateExisting: updateExisting === "true",
+			limit: limit ? parseInt(limit) : null,
+		};
+
+		// Start the fetch process (this will take a long time)
+		const result = await fetchAllItemPrices(options);
+
+		if (!result.success) {
+			return res.status(500).json({
+				success: false,
+				error: result.error,
+				stats: result.stats,
+			});
+		}
+
+		res.json({
+			success: true,
+			message: "Price fetch completed",
+			stats: result.stats,
+		});
+	} catch (error) {
+		console.error("❌ Error in bulk price fetch:", error);
+		next(error);
+	}
+});
+
+/**
+ * POST /api/prices/update
+ * Update prices for specific items
+ *
+ * Body: { items: ["item1", "item2", ...] }
+ */
+router.post("/update", async (req, res, next) => {
+	try {
+		const { items } = req.body;
+
+		if (!items || !Array.isArray(items) || items.length === 0) {
+			return res.status(400).json({
+				success: false,
+				error: "Items array is required",
+			});
+		}
+
+		console.log(`🔄 Updating prices for ${items.length} items...`);
+
+		const result = await updateItemPrices(items);
+
+		res.json({
+			success: true,
+			message: `Updated ${items.length} items`,
+			stats: result.stats,
+		});
+	} catch (error) {
+		console.error("❌ Error updating prices:", error);
+		next(error);
+	}
+});
+
+export default router;

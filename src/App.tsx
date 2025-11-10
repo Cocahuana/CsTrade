@@ -8,11 +8,18 @@ import type { AppDispatch } from "./store/store";
 import Calculator from "./components/Calculator/Calculator";
 import TradeUpCalculator from "./components/TradeUpCalculator/TradeUpCalculator";
 import InventoryAnalyzer from "./components/InventoryAnalyzer/InventoryAnalyzer";
-type View = "calculator" | "analyzer" | "tradeup" | "tracker";
+import CasesBrowser from "./components/Cases/CasesBrowser";
+import CaseDetails from "./components/Cases/CaseDetails";
+type View = "calculator" | "analyzer" | "tradeup" | "cases" | "tracker";
 
 function App() {
 	const [currentView, setCurrentView] = useState<View>("calculator");
+	const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 	const dispatch = useDispatch<AppDispatch>();
+
+	// Mock user ID - in a real app, this would come from authentication
+	// Using Steam ID instead of UUID - backend will handle the conversion
+	const userId = "1dcab69b-5692-4e3f-8eb4-239ff04b9315";
 
 	// Fetch CS2 items metadata and collection items on app initialization
 	useEffect(() => {
@@ -20,6 +27,19 @@ function App() {
 		dispatch(fetchCS2Items());
 		dispatch(fetchCollectionItems());
 	}, [dispatch]);
+
+	const handleCaseClick = (caseId: string) => {
+		setSelectedCaseId(caseId);
+	};
+
+	const handleBackToBrowse = () => {
+		setSelectedCaseId(null);
+	};
+
+	const handleViewChange = (view: View) => {
+		setCurrentView(view);
+		setSelectedCaseId(null); // Reset case selection when changing views
+	};
 
 	return (
 		<div className='min-h-screen bg-slate-900'>
@@ -31,7 +51,7 @@ function App() {
 						</h1>
 						<nav className='flex gap-6'>
 							<button
-								onClick={() => setCurrentView("calculator")}
+								onClick={() => handleViewChange("calculator")}
 								className={`transition-colors ${
 									currentView === "calculator"
 										? "text-blue-400 hover:text-blue-300"
@@ -41,7 +61,7 @@ function App() {
 								Calculator
 							</button>
 							<button
-								onClick={() => setCurrentView("analyzer")}
+								onClick={() => handleViewChange("analyzer")}
 								className={`transition-colors ${
 									currentView === "analyzer"
 										? "text-blue-400 hover:text-blue-300"
@@ -51,7 +71,7 @@ function App() {
 								Inventory Analyzer
 							</button>
 							<button
-								onClick={() => setCurrentView("tradeup")}
+								onClick={() => handleViewChange("tradeup")}
 								className={`transition-colors ${
 									currentView === "tradeup"
 										? "text-blue-400 hover:text-blue-300"
@@ -61,7 +81,17 @@ function App() {
 								Trade-Up Builder
 							</button>
 							<button
-								onClick={() => setCurrentView("tracker")}
+								onClick={() => handleViewChange("cases")}
+								className={`transition-colors ${
+									currentView === "cases"
+										? "text-blue-400 hover:text-blue-300"
+										: "text-slate-400 hover:text-slate-300"
+								}`}
+							>
+								Cases
+							</button>
+							<button
+								onClick={() => handleViewChange("tracker")}
 								className={`transition-colors ${
 									currentView === "tracker"
 										? "text-blue-400 hover:text-blue-300"
@@ -79,6 +109,16 @@ function App() {
 				{currentView === "calculator" && <Calculator />}
 				{currentView === "analyzer" && <InventoryAnalyzer />}
 				{currentView === "tradeup" && <TradeUpCalculator />}
+				{currentView === "cases" &&
+					(selectedCaseId ? (
+						<CaseDetails
+							caseId={selectedCaseId}
+							userId={userId}
+							onBack={handleBackToBrowse}
+						/>
+					) : (
+						<CasesBrowser onCaseClick={handleCaseClick} />
+					))}
 				{currentView === "tracker" && (
 					<div className='bg-slate-800 rounded-lg p-12 border border-slate-700 text-center'>
 						<h3 className='text-xl font-semibold text-white mb-2'>

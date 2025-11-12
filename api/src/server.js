@@ -10,6 +10,8 @@ import collectionsRoutes from "./routes/collections.js";
 import casesRoutes from "./routes/cases.js";
 import openingsRoutes from "./routes/openings.js";
 import creatorRoutes from "./routes/creator.js";
+import analyticsRoutes from "./routes/analytics.js";
+import itemsRoutes from "./routes/items.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
 
@@ -47,6 +49,8 @@ app.use("/api/collections", collectionsRoutes);
 app.use("/api/cases", casesRoutes);
 app.use("/api/openings", openingsRoutes);
 app.use("/api/creator", creatorRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/items", itemsRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

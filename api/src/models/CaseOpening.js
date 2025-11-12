@@ -65,6 +65,13 @@ export default function (sequelize) {
 				field: "pool_contribution_credits",
 				comment: "75% to reward pool",
 			},
+			houseProfitCredits: {
+				type: DataTypes.INTEGER,
+				allowNull: false,
+				field: "house_profit_credits",
+				comment:
+					"House profit/loss: creditsSpent - itemValueCredits (positive = house won, negative = house lost)",
+			},
 			randomSeed: {
 				type: DataTypes.STRING(64),
 				allowNull: true,

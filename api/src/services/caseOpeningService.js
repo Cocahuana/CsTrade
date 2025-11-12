@@ -138,6 +138,9 @@ export async function openCase(userId, caseId) {
 		// 6. Calculate fees
 		const fees = calculateFees(customCase.priceCredits);
 
+		// Calculate house profit/loss (positive = house won, negative = house lost)
+		const houseProfitCredits = customCase.priceCredits - itemValueCredits;
+
 		// 7. Deduct credits from user
 		const balanceBefore = user.balanceCredits;
 		user.balanceCredits -= customCase.priceCredits;
@@ -168,6 +171,7 @@ export async function openCase(userId, caseId) {
 				itemWonId: selectedItem.itemId,
 				creditsSpent: customCase.priceCredits,
 				itemValueCredits,
+				houseProfitCredits,
 				platformFeeCredits: fees.platformFee,
 				creatorFeeCredits: fees.creatorFee,
 				poolContributionCredits: fees.poolContribution,

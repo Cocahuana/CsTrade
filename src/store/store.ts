@@ -5,6 +5,7 @@ import cs2ItemsReducer from "./slices/cs2ItemsSlice";
 import casesReducer from "./slices/casesSlice";
 import { steamApi } from "./api/steamApi";
 import { pricesApi } from "./api/pricesApi";
+import { itemsApi } from "./api/itemsApi";
 
 export const store = configureStore({
 	reducer: {
@@ -14,11 +15,13 @@ export const store = configureStore({
 		cases: casesReducer,
 		[steamApi.reducerPath]: steamApi.reducer,
 		[pricesApi.reducerPath]: pricesApi.reducer,
+		[itemsApi.reducerPath]: itemsApi.reducer,
 	},
 	middleware: (getDefaultMiddleware) =>
 		getDefaultMiddleware()
 			.concat(steamApi.middleware)
-			.concat(pricesApi.middleware),
+			.concat(pricesApi.middleware)
+			.concat(itemsApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

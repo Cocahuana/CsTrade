@@ -51,6 +51,12 @@ export default function (sequelize) {
 				allowNull: true,
 				defaultValue: 0,
 			},
+			imageUrl: {
+				type: DataTypes.STRING(512),
+				allowNull: true,
+				field: "image_url",
+				comment: "Steam CDN image URL for the item",
+			},
 			source: {
 				type: DataTypes.ENUM("steam", "skinport", "manual"),
 				defaultValue: "steam",

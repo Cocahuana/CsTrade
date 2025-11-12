@@ -3,7 +3,7 @@ import db from "../models/index.js";
 import { scrapeCollections } from "../services/collectionScraper.js";
 
 const router = express.Router();
-const { Collection, Item, CollectionItem } = db;
+const { Collection, Item, CollectionItem, Price } = db;
 
 /**
  * GET /api/collections
@@ -141,6 +141,73 @@ router.get("/:id", async (req, res, next) => {
 		});
 	} catch (error) {
 		console.error("❌ Error fetching collection:", error);
+		next(error);
+	}
+});
+
+/**
+ * GET /api/collections/:id/items
+ * Get all items from a specific collection with prices
+ */
+router.get("/:id/items", async (req, res, next) => {
+	try {
+		const { id } = req.params;
+
+		console.log(`📚 Fetching items for collection ID: ${id}`);
+
+		const collection = await Collection.findByPk(id, {
+			include: [
+				{
+					model: Item,
+					as: "items",
+					through: {
+						attributes: ["rarity"],
+					},
+					include: [
+						{
+							model: Price,
+							as: "price",
+							attributes: ["price", "lowestPrice", "medianPrice"],
+						},
+					],
+				},
+			],
+		});
+
+		if (!collection) {
+			console.log(`  ⚠️ Collection ${id} not found`);
+			return res.status(404).json({
+				success: false,
+				error: "Collection not found",
+			});
+		}
+
+		// Format items for frontend
+		const items = collection.items.map((item) => ({
+			id: item.id,
+			name: item.name,
+			rarity: item.CollectionItem?.rarity || "Unknown",
+			price: item.price
+				? {
+						price: parseFloat(item.price.price),
+						lowestPrice: parseFloat(item.price.lowestPrice),
+						medianPrice: parseFloat(item.price.medianPrice),
+				  }
+				: null,
+		}));
+
+		console.log(
+			`  ✅ Found ${items.length} items in collection: ${collection.name}`
+		);
+
+		res.json({
+			success: true,
+			collectionId: collection.id,
+			collectionName: collection.name,
+			items,
+		});
+	} catch (error) {
+		console.error("❌ Error fetching collection items:", error);
 		next(error);
 	}
 });

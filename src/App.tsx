@@ -10,7 +10,16 @@ import TradeUpCalculator from "./components/TradeUpCalculator/TradeUpCalculator"
 import InventoryAnalyzer from "./components/InventoryAnalyzer/InventoryAnalyzer";
 import CasesBrowser from "./components/Cases/CasesBrowser";
 import CaseDetails from "./components/Cases/CaseDetails";
-type View = "calculator" | "analyzer" | "tradeup" | "cases" | "tracker";
+import CaseCreator from "./components/Cases/CaseCreator";
+import ItemsPage from "./components/Items/ItemsPage";
+type View =
+	| "calculator"
+	| "analyzer"
+	| "tradeup"
+	| "cases"
+	| "items"
+	| "tracker"
+	| "create-case";
 
 function App() {
 	const [currentView, setCurrentView] = useState<View>("calculator");
@@ -91,6 +100,26 @@ function App() {
 								Cases
 							</button>
 							<button
+								onClick={() => handleViewChange("items")}
+								className={`transition-colors ${
+									currentView === "items"
+										? "text-blue-400 hover:text-blue-300"
+										: "text-slate-400 hover:text-slate-300"
+								}`}
+							>
+								Items
+							</button>
+							<button
+								onClick={() => handleViewChange("create-case")}
+								className={`transition-colors ${
+									currentView === "create-case"
+										? "text-blue-400 hover:text-blue-300"
+										: "text-slate-400 hover:text-slate-300"
+								}`}
+							>
+								Create Case
+							</button>
+							<button
 								onClick={() => handleViewChange("tracker")}
 								className={`transition-colors ${
 									currentView === "tracker"
@@ -109,6 +138,7 @@ function App() {
 				{currentView === "calculator" && <Calculator />}
 				{currentView === "analyzer" && <InventoryAnalyzer />}
 				{currentView === "tradeup" && <TradeUpCalculator />}
+				{currentView === "items" && <ItemsPage />}
 				{currentView === "cases" &&
 					(selectedCaseId ? (
 						<CaseDetails
@@ -119,6 +149,9 @@ function App() {
 					) : (
 						<CasesBrowser onCaseClick={handleCaseClick} />
 					))}
+				{currentView === "create-case" && (
+					<CaseCreator userId={userId} />
+				)}
 				{currentView === "tracker" && (
 					<div className='bg-slate-800 rounded-lg p-12 border border-slate-700 text-center'>
 						<h3 className='text-xl font-semibold text-white mb-2'>

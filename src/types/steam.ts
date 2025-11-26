@@ -43,6 +43,7 @@ export interface SteamDescription {
 	market_tradable_restriction: number;
 	marketable: number;
 	tags: SteamTag[];
+	fraudwarnings?: string[]; // Protected items warning
 }
 
 export interface SteamTag {
@@ -76,6 +77,7 @@ export interface InventoryItem {
 	collection?: string;
 	float?: number;
 	price?: number;
+	fraudWarning?: boolean; // Protected/trade-locked items
 }
 
 // Skinport API types

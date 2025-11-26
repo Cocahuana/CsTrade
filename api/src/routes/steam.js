@@ -14,7 +14,8 @@ import {
 
 const router = express.Router();
 const { Price } = db;
-const CACHE_EXPIRATION_MINUTES = parseInt(process.env.PRICE_CACHE_MINUTES) || 60;
+const CACHE_EXPIRATION_MINUTES =
+	parseInt(process.env.PRICE_CACHE_MINUTES) || 60;
 
 /**
  * GET /api/steam/inventory/:steamId
@@ -96,7 +97,7 @@ router.get("/inventory/:steamId", async (req, res, next) => {
 				console.log(
 					`📦 Method 2: Trying community inventory with XML parameter...`
 				);
-				const steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}?xml=1`;
+				const steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}?xml=1&l=english`;
 
 				const response = await fetch(steamUrl, {
 					headers: {
@@ -152,7 +153,7 @@ router.get("/inventory/:steamId", async (req, res, next) => {
 		if (!data) {
 			try {
 				console.log(`📦 Method 3: Trying standard JSON endpoint...`);
-				const steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}`;
+				const steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}?l=english`;
 
 				const response = await fetch(steamUrl, {
 					headers: {
@@ -215,10 +216,21 @@ router.get("/inventory/:steamId", async (req, res, next) => {
 			});
 		}
 
+		// Check for protected items in the raw data
+		const protectedItems =
+			data.descriptions?.filter(
+				(desc) => desc.fraudwarnings && desc.fraudwarnings.length > 0
+			) || [];
+
+		const tradableItems =
+			data.descriptions?.filter((desc) => desc.tradable === 1) || [];
+
 		console.log(
 			`✅ Successfully fetched inventory: ${
 				data.total_inventory_count || data.assets?.length || 0
-			} total items`
+			} total items | ${tradableItems.length} tradable | ${
+				protectedItems.length
+			} protected`
 		);
 
 		// Return the data as-is (frontend will process it)
@@ -403,10 +415,14 @@ router.post("/market/prices/batch", async (req, res, next) => {
 					};
 
 					console.log(
-						`  ✅ [${i + 1}/${needsFetch.length}] ${marketHashName}: $${price}`
+						`  ✅ [${i + 1}/${
+							needsFetch.length
+						}] ${marketHashName}: $${price}`
 					);
 				} else {
-					console.warn(`  ⚠️ Failed: ${marketHashName} (${response.status})`);
+					console.warn(
+						`  ⚠️ Failed: ${marketHashName} (${response.status})`
+					);
 					errors.push({
 						marketHashName,
 						error: `HTTP ${response.status}`,
@@ -599,7 +615,7 @@ router.get("/items/collection-items", (req, res, next) => {
 /**
  * POST /api/steam/floats
  * Fetch float values for items using inspect links
- * 
+ *
  * NOTE: This requires integration with CSGOFloat API or similar service
  * For now, this is a placeholder that returns mock data
  *
@@ -668,7 +684,9 @@ router.post("/items/outcomes", (req, res, next) => {
 			});
 		}
 
-		console.log(`🎲 Calculating outcomes for ${inputs.length} input items...`);
+		console.log(
+			`🎲 Calculating outcomes for ${inputs.length} input items...`
+		);
 
 		// Group inputs by collection
 		const collectionCounts = {};
@@ -709,7 +727,11 @@ router.post("/items/outcomes", (req, res, next) => {
 			}
 		});
 
-		console.log(`✅ Found ${allOutcomes.length} possible outcomes across ${Object.keys(outcomesByCollection).length} collections`);
+		console.log(
+			`✅ Found ${allOutcomes.length} possible outcomes across ${
+				Object.keys(outcomesByCollection).length
+			} collections`
+		);
 
 		res.json({
 			success: true,
@@ -718,7 +740,8 @@ router.post("/items/outcomes", (req, res, next) => {
 				byCollection: outcomesByCollection,
 				stats: {
 					totalOutcomes: allOutcomes.length,
-					collectionsInvolved: Object.keys(outcomesByCollection).length,
+					collectionsInvolved:
+						Object.keys(outcomesByCollection).length,
 					inputRarity,
 				},
 			},

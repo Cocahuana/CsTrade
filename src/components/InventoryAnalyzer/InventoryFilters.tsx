@@ -13,6 +13,9 @@ export interface InventoryFilterState {
 	minPrice: number;
 	maxPrice: number;
 	searchText: string;
+	showProtectedItems: boolean;
+	sortBy: string;
+	sortOrder: "asc" | "desc";
 }
 
 interface InventoryFiltersProps {
@@ -67,6 +70,9 @@ export default function InventoryFilters({
 			minPrice: 0,
 			maxPrice: 10000,
 			searchText: "",
+			showProtectedItems: true,
+			sortBy: "date",
+			sortOrder: "desc",
 		});
 	};
 
@@ -90,7 +96,29 @@ export default function InventoryFilters({
 		(filters.maxFloat < 1 ? 1 : 0) +
 		(filters.minPrice > 0 ? 1 : 0) +
 		(filters.maxPrice < 10000 ? 1 : 0) +
-		(filters.searchText ? 1 : 0);
+		(filters.searchText ? 1 : 0) +
+		(!filters.showProtectedItems ? 1 : 0);
+
+	// Standard rarity options
+	const standardRarities = [
+		"Consumer",
+		"Industrial",
+		"Mil-Spec",
+		"Restricted",
+		"Classified",
+		"Covert",
+	];
+
+	const toggleStandardRarity = (rarity: string) => {
+		const newRarities = filters.rarities.some((r) => r.includes(rarity))
+			? filters.rarities.filter((r) => !r.includes(rarity))
+			: [...filters.rarities, rarity];
+		onFiltersChange({ ...filters, rarities: newRarities });
+	};
+
+	const isRaritySelected = (rarity: string) => {
+		return filters.rarities.some((r) => r.includes(rarity));
+	};
 
 	return (
 		<div className='bg-slate-800 rounded-lg border border-slate-700 overflow-hidden'>
@@ -159,28 +187,105 @@ export default function InventoryFilters({
 						/>
 					</div>
 
-					{/* Rarity Filter */}
+					{/* Rarity Filter - Checkboxes */}
 					<div>
-						<label className='block text-sm font-semibold text-slate-300 mb-2'>
+						<label className='block text-sm font-semibold text-slate-300 mb-3'>
 							Rarity
 						</label>
-						<div className='flex flex-wrap gap-2'>
-							{availableRarities.map((rarity) => (
-								<button
+						<div className='grid grid-cols-2 gap-2'>
+							{standardRarities.map((rarity) => (
+								<label
 									key={rarity}
-									onClick={() => toggleRarity(rarity)}
-									className={`px-3 py-1.5 rounded text-xs font-semibold transition-all ${
-										filters.rarities.includes(rarity)
-											? `${getRarityColor(
-													rarity
-											  )} text-white shadow-lg`
-											: "bg-slate-700 text-slate-300 hover:bg-slate-600"
-									}`}
+									className='flex items-center gap-2 cursor-pointer hover:bg-slate-700/50 p-2 rounded transition-colors'
 								>
-									{rarity}
-								</button>
+									<input
+										type='checkbox'
+										checked={isRaritySelected(rarity)}
+										onChange={() =>
+											toggleStandardRarity(rarity)
+										}
+										className='w-4 h-4 rounded border-slate-600 text-blue-600 focus:ring-blue-500'
+									/>
+									<span
+										className={`text-sm font-medium ${
+											isRaritySelected(rarity)
+												? "text-white"
+												: "text-slate-300"
+										}`}
+									>
+										{rarity}
+									</span>
+								</label>
 							))}
 						</div>
+					</div>
+
+					{/* Sorting Options */}
+					<div>
+						<label className='block text-sm font-semibold text-slate-300 mb-2'>
+							Sort By
+						</label>
+						<div className='flex gap-2'>
+							<select
+								value={filters.sortBy}
+								onChange={(e) =>
+									onFiltersChange({
+										...filters,
+										sortBy: e.target.value,
+									})
+								}
+								className='flex-1 bg-slate-700 text-white rounded px-3 py-2 text-sm border border-slate-600 focus:outline-none focus:border-blue-500'
+							>
+								<option value='date'>Date</option>
+								<option value='rarity'>Rarity</option>
+								<option value='price'>Price</option>
+								<option value='float'>Float</option>
+							</select>
+							<button
+								onClick={() =>
+									onFiltersChange({
+										...filters,
+										sortOrder:
+											filters.sortOrder === "asc"
+												? "desc"
+												: "asc",
+									})
+								}
+								className='bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded text-sm border border-slate-600 transition-colors'
+								title={
+									filters.sortOrder === "asc"
+										? "Lowest to Highest"
+										: "Highest to Lowest"
+								}
+							>
+								{filters.sortOrder === "asc" ? "↑" : "↓"}
+							</button>
+						</div>
+						<p className='text-xs text-slate-400 mt-1'>
+							{filters.sortOrder === "asc"
+								? "Lowest to Highest"
+								: "Highest to Lowest"}
+						</p>
+					</div>
+
+					{/* Show Protected Items */}
+					<div>
+						<label className='flex items-center gap-2 cursor-pointer hover:bg-slate-700/50 p-2 rounded transition-colors'>
+							<input
+								type='checkbox'
+								checked={filters.showProtectedItems}
+								onChange={(e) =>
+									onFiltersChange({
+										...filters,
+										showProtectedItems: e.target.checked,
+									})
+								}
+								className='w-4 h-4 rounded border-slate-600 text-yellow-600 focus:ring-yellow-500'
+							/>
+							<span className='text-sm text-slate-300'>
+								Show Protected Items
+							</span>
+						</label>
 					</div>
 
 					{/* Exterior Filter */}

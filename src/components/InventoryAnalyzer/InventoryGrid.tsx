@@ -4,6 +4,7 @@ import type { InventoryFilterState } from "./InventoryFilters";
 interface InventoryGridProps {
 	items: InventoryItem[];
 	filters?: InventoryFilterState;
+	isLoadingPrices?: boolean;
 }
 
 // Calculate average price per gun + exterior combination
@@ -41,7 +42,11 @@ function calculateAveragePrices(items: InventoryItem[]) {
 	});
 }
 
-export default function InventoryGrid({ items, filters }: InventoryGridProps) {
+export default function InventoryGrid({
+	items,
+	filters,
+	isLoadingPrices = false,
+}: InventoryGridProps) {
 	// Apply filters
 	let filteredItems = items;
 
@@ -98,6 +103,11 @@ export default function InventoryGrid({ items, filters }: InventoryGridProps) {
 				return false;
 			}
 
+			// Protected items filter
+			if (!filters.showProtectedItems && item.fraudWarning) {
+				return false;
+			}
+
 			// Float filter
 			if (item.float !== undefined) {
 				if (
@@ -115,6 +125,43 @@ export default function InventoryGrid({ items, filters }: InventoryGridProps) {
 			}
 
 			return true;
+		});
+
+		// Apply sorting
+		filteredItems = [...filteredItems].sort((a, b) => {
+			const order = filters.sortOrder === "asc" ? 1 : -1;
+
+			switch (filters.sortBy) {
+				case "price":
+					return ((a.price || 0) - (b.price || 0)) * order;
+				case "float":
+					return ((a.float || 0) - (b.float || 0)) * order;
+				case "rarity": {
+					const rarityOrder = [
+						"Consumer",
+						"Industrial",
+						"Mil-Spec",
+						"Restricted",
+						"Classified",
+						"Covert",
+					];
+					const aIndex = rarityOrder.findIndex((r) =>
+						a.rarity.includes(r)
+					);
+					const bIndex = rarityOrder.findIndex((r) =>
+						b.rarity.includes(r)
+					);
+					return (
+						((aIndex === -1 ? 999 : aIndex) -
+							(bIndex === -1 ? 999 : bIndex)) *
+						order
+					);
+				}
+				case "date":
+				default:
+					// Default to order received from API
+					return 0;
+			}
 		});
 	}
 
@@ -164,39 +211,75 @@ export default function InventoryGrid({ items, filters }: InventoryGridProps) {
 						</svg>
 						Average Prices by Weapon & Exterior
 					</h3>
-					<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
-						{averagePrices
-							.sort((a, b) => b.averagePrice - a.averagePrice)
-							.slice(0, 12)
-							.map((priceInfo, index) => (
-								<div
-									key={index}
-									className='bg-slate-700/50 rounded-lg p-3 border border-slate-600 hover:border-green-500/50 transition-colors'
-								>
-									<div className='flex items-start justify-between gap-2'>
-										<div className='flex-1 min-w-0'>
-											<div className='text-sm font-semibold text-white truncate'>
-												{priceInfo.gunName}
+
+					{isLoadingPrices ? (
+						<div className='flex flex-col items-center justify-center py-12'>
+							<svg
+								className='animate-spin h-12 w-12 text-blue-400 mb-4'
+								viewBox='0 0 24 24'
+							>
+								<circle
+									className='opacity-25'
+									cx='12'
+									cy='12'
+									r='10'
+									stroke='currentColor'
+									strokeWidth='4'
+									fill='none'
+								/>
+								<path
+									className='opacity-75'
+									fill='currentColor'
+									d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+								/>
+							</svg>
+							<p className='text-slate-400 text-sm'>
+								Loading prices...
+							</p>
+						</div>
+					) : (
+						<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
+							{averagePrices
+								.sort((a, b) => b.averagePrice - a.averagePrice)
+								.slice(0, 12)
+								.map((priceInfo, index) => (
+									<div
+										key={index}
+										className='bg-slate-700/50 rounded-lg p-3 border border-slate-600 hover:border-green-500/50 transition-colors'
+									>
+										<div className='flex items-start justify-between gap-2'>
+											<div className='flex-1 min-w-0'>
+												<div className='text-sm font-semibold text-white truncate'>
+													{priceInfo.gunName}
+												</div>
+												<div className='text-xs text-slate-400 mt-0.5'>
+													{priceInfo.exterior}
+												</div>
 											</div>
-											<div className='text-xs text-slate-400 mt-0.5'>
-												{priceInfo.exterior}
-											</div>
-										</div>
-										<div className='text-right'>
-											<div className='text-lg font-bold text-green-400'>
-												$
-												{priceInfo.averagePrice.toFixed(
-													2
+											<div className='text-right'>
+												{priceInfo.averagePrice > 0 ? (
+													<>
+														<div className='text-lg font-bold text-green-400'>
+															$
+															{priceInfo.averagePrice.toFixed(
+																2
+															)}
+														</div>
+														<div className='text-xs text-slate-500'>
+															×{priceInfo.count}
+														</div>
+													</>
+												) : (
+													<div className='text-sm font-semibold text-slate-500'>
+														N/A
+													</div>
 												)}
-											</div>
-											<div className='text-xs text-slate-500'>
-												×{priceInfo.count}
 											</div>
 										</div>
 									</div>
-								</div>
-							))}
-					</div>
+								))}
+						</div>
+					)}
 				</div>
 			)}
 

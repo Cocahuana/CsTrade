@@ -39,7 +39,11 @@ function getCollection(tags: SteamDescription["tags"]): string | undefined {
 function processInventory(response: SteamInventoryResponse): InventoryItem[] {
 	const { assets, descriptions } = response;
 
-	return assets
+	console.log(
+		`🔍 Processing inventory: ${assets.length} assets, ${descriptions.length} descriptions`
+	);
+
+	const items = assets
 		.map((asset) => {
 			const description = descriptions.find(
 				(d) =>
@@ -47,9 +51,14 @@ function processInventory(response: SteamInventoryResponse): InventoryItem[] {
 					d.instanceid === asset.instanceid
 			);
 
-			if (!description) return null;
+			if (!description) {
+				console.warn(
+					`⚠️ No description found for asset ${asset.assetid}`
+				);
+				return null;
+			}
 
-			// Filter: only include CS2 weapon skins that are tradable
+			// Filter: only include CS2 weapon skins
 			// CS2 weapon types include: Pistol, Rifle, SMG, Sniper Rifle, Shotgun, Machinegun, Knife, Gloves
 			const weaponTypes = [
 				"Pistol",
@@ -65,7 +74,22 @@ function processInventory(response: SteamInventoryResponse): InventoryItem[] {
 				description.type?.includes(type)
 			);
 
-			if (!isWeapon || !description.tradable) return null;
+			// Include all weapons (tradable and protected/non-tradable)
+			if (!isWeapon) {
+				console.log(
+					`⏭️ Skipping non-weapon: ${description.name} (${description.type})`
+				);
+				return null;
+			}
+
+			const hasFraudWarning =
+				description.fraudwarnings &&
+				description.fraudwarnings.length > 0;
+			const isTradable = description.tradable === 1;
+
+			console.log(
+				`✅ Including weapon: ${description.name} | Tradable: ${isTradable} | Protected: ${hasFraudWarning}`
+			);
 
 			const item: InventoryItem = {
 				assetId: asset.assetid,
@@ -76,16 +100,26 @@ function processInventory(response: SteamInventoryResponse): InventoryItem[] {
 				exterior: parseExterior(description.market_hash_name),
 				statTrak: description.market_hash_name.includes("StatTrak™"),
 				imageUrl: `https://community.cloudflare.steamstatic.com/economy/image/${description.icon_url}`,
-				tradable: description.tradable === 1,
+				tradable: isTradable,
 				marketable: description.marketable === 1,
 				tradeableAfterDays:
 					description.market_tradable_restriction || 0,
 				collection: getCollection(description.tags),
+				fraudWarning: hasFraudWarning,
 			};
 
 			return item;
 		})
 		.filter((item): item is InventoryItem => item !== null);
+
+	const protectedCount = items.filter((item) => item.fraudWarning).length;
+	const tradableCount = items.filter((item) => item.tradable).length;
+
+	console.log(
+		`📊 Summary: ${items.length} weapons | ${tradableCount} tradable | ${protectedCount} protected`
+	);
+
+	return items;
 }
 
 export const steamApi = createApi({
@@ -100,7 +134,7 @@ export const steamApi = createApi({
 		getInventory: builder.query<InventoryItem[], string>({
 			async queryFn(steamId, _api, _extraOptions, fetchWithBQ) {
 				try {
-					const url = `/inventory/${steamId}/730/2?l=english&count=5000`;
+					const url = `/inventory/${steamId}/730/2?l=english`;
 
 					// In production, you might need to use a CORS proxy:
 					// const proxiedUrl = API_CONFIG.corsProxy.allOrigins(
@@ -149,8 +183,9 @@ export const steamApi = createApi({
 					}${API_CONFIG.backend.steam.inventory(steamId)}`;
 
 					console.log(
-						`📦 Fetching inventory from backend API: ${backendUrl}`
+						`📦 Fetching inventory for Steam ID: ${steamId}`
 					);
+					console.log(`📦 Backend API URL: ${backendUrl}`);
 
 					const response = await fetch(backendUrl);
 
@@ -188,24 +223,27 @@ export const steamApi = createApi({
 						return {
 							error: {
 								status: "CUSTOM_ERROR" as const,
-								error: "No CS2 items found in inventory. Make sure you have tradable CS2 skins.",
+								error: "No CS2 items found in inventory. Make sure your Steam profile is public.",
 							},
 						};
 					}
 
 					const processedItems = processInventory(data);
 
+					console.log(
+						`🔍 Processed ${processedItems.length} weapon skins from ${data.assets.length} total items`
+					);
+
 					if (processedItems.length === 0) {
 						return {
 							error: {
 								status: "CUSTOM_ERROR" as const,
-								error: "No tradable CS2 weapon skins found in your inventory.",
+								error: "No CS2 weapon skins found in your inventory. Your inventory contains non-weapon items like graffiti, cases, or collectibles.",
 							},
 						};
 					}
-
 					console.log(
-						`✅ Successfully fetched ${processedItems.length} tradable items from backend!`
+						`✅ Successfully fetched ${processedItems.length} weapon skins from backend!`
 					);
 
 					return { data: processedItems };

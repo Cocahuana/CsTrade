@@ -17,6 +17,7 @@ import InventoryFilters, {
 export default function InventoryAnalyzer() {
 	const dispatch = useDispatch<AppDispatch>();
 	const [steamId, setSteamId] = useState("");
+	const [isLoadingPrices, setIsLoadingPrices] = useState(false);
 	const [filters, setFilters] = useState<InventoryFilterState>({
 		rarities: [],
 		exteriors: [],
@@ -30,6 +31,9 @@ export default function InventoryAnalyzer() {
 		minPrice: 0,
 		maxPrice: 10000,
 		searchText: "",
+		showProtectedItems: true,
+		sortBy: "date",
+		sortOrder: "desc",
 	});
 	const [
 		fetchInventory,
@@ -46,6 +50,7 @@ export default function InventoryAnalyzer() {
 	// Function to fetch prices in batch using the backend endpoint
 	const fetchBatchPrices = async (marketHashNames: string[]) => {
 		try {
+			setIsLoadingPrices(true);
 			console.log(
 				`💰 Fetching prices for ${marketHashNames.length} items using batch endpoint...`
 			);
@@ -78,6 +83,8 @@ export default function InventoryAnalyzer() {
 			}
 		} catch (err) {
 			console.error("Failed to fetch batch prices:", err);
+		} finally {
+			setIsLoadingPrices(false);
 		}
 		return {};
 	};
@@ -174,17 +181,29 @@ export default function InventoryAnalyzer() {
 			// Extract Steam ID from URL if needed
 			let extractedId = steamId.trim();
 
+			console.log("🔍 Original input:", steamId);
+			console.log("🔍 After trim:", extractedId);
+
 			// Handle full inventory URL (https://steamcommunity.com/profiles/76561198358588609/inventory/#730)
 			if (steamId.includes("inventory")) {
 				const inventoryMatch = steamId.match(
 					/profiles\/(\d+)\/inventory/
 				);
-				if (inventoryMatch) extractedId = inventoryMatch[1];
+				if (inventoryMatch) {
+					extractedId = inventoryMatch[1];
+					console.log(
+						"🔍 Extracted from inventory URL:",
+						extractedId
+					);
+				}
 			}
 			// Handle profile URL
 			else if (steamId.includes("steamcommunity.com")) {
 				const match = steamId.match(/profiles\/(\d+)/);
-				if (match) extractedId = match[1];
+				if (match) {
+					extractedId = match[1];
+					console.log("🔍 Extracted from profile URL:", extractedId);
+				}
 				// Handle custom URLs
 				else if (steamId.includes("/id/")) {
 					alert(
@@ -194,7 +213,16 @@ export default function InventoryAnalyzer() {
 				}
 			}
 
-			console.log("Fetching inventory for Steam ID:", extractedId);
+			// Validate that extractedId is just numbers (Steam ID format)
+			if (!/^\d+$/.test(extractedId)) {
+				console.error("❌ Invalid Steam ID format:", extractedId);
+				alert(
+					"Invalid Steam ID. Please enter only the numeric Steam ID (e.g., 76561198358588609)"
+				);
+				return;
+			}
+
+			console.log("✅ Fetching inventory for Steam ID:", extractedId);
 			const result = await fetchInventory(extractedId).unwrap();
 			console.log("result: ", result);
 			dispatch(setInventory(result));
@@ -458,6 +486,7 @@ export default function InventoryAnalyzer() {
 					<InventoryGrid
 						items={inventoryWithPrices}
 						filters={filters}
+						isLoadingPrices={isLoadingPrices}
 					/>
 				)}
 

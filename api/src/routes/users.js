@@ -253,7 +253,7 @@ router.get("/:steamId/inventory", async (req, res, next) => {
 				{
 					model: Item,
 					as: "item",
-					include: [{ model: Price, as: "price" }],
+					include: [{ model: Price, as: "prices" }],
 				},
 				{
 					model: CaseOpening,

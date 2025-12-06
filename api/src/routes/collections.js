@@ -173,6 +173,7 @@ router.get("/:id/items", async (req, res, next) => {
 								"lowestPrice",
 								"medianPrice",
 								"marketHashName",
+								"imageUrl",
 							],
 						},
 					],
@@ -210,10 +211,10 @@ router.get("/:id/items", async (req, res, next) => {
 						? parseFloat(price.medianPrice)
 						: null,
 					marketHashName: price.marketHashName,
+					imageUrl: price.imageUrl,
 				};
 				return acc;
 			}, {});
-
 			return {
 				id: item.id,
 				name: item.name,

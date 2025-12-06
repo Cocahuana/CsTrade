@@ -76,7 +76,7 @@ router.get("/", async (req, res) => {
 							include: [
 								{
 									model: Price,
-									as: "price",
+									as: "prices",
 								},
 							],
 						},
@@ -147,7 +147,7 @@ router.get("/:id", async (req, res) => {
 							include: [
 								{
 									model: Price,
-									as: "price",
+									as: "prices",
 								},
 							],
 						},
@@ -311,7 +311,7 @@ router.post("/", async (req, res) => {
 							include: [
 								{
 									model: Price,
-									as: "price",
+									as: "prices",
 								},
 							],
 						},
@@ -452,7 +452,7 @@ router.put("/:id", async (req, res) => {
 							include: [
 								{
 									model: Price,
-									as: "price",
+									as: "prices",
 								},
 							],
 						},
@@ -552,7 +552,7 @@ router.get("/:id/openings", async (req, res) => {
 					include: [
 						{
 							model: Price,
-							as: "price",
+							as: "prices",
 						},
 					],
 				},

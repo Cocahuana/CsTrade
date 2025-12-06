@@ -137,7 +137,7 @@ router.get("/:userId/cases", async (req, res) => {
 							include: [
 								{
 									model: Price,
-									as: "price",
+									as: "prices",
 								},
 							],
 						},

@@ -130,10 +130,9 @@ export async function fetchCollectionPrices(collectionName) {
 								lowestPrice: price,
 								medianPrice: null,
 								volume: 0,
+								imageUrl: imageUrl || null,
 								source: "steam",
-							});
-
-							// Update Item image if missing
+							}); // Update Item image if missing
 							if (imageUrl) {
 								await Item.update(
 									{ imageUrl, exterior },
@@ -223,6 +222,7 @@ export async function fetchCollectionPrices(collectionName) {
 							lowestPrice: price,
 							medianPrice: null,
 							volume: 0,
+							imageUrl: imageUrl || null,
 							source: "steam",
 						});
 

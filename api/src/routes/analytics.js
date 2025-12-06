@@ -334,7 +334,7 @@ router.get("/recent-big-wins", async (req, res, next) => {
 					include: [
 						{
 							model: db.Price,
-							as: "price",
+							as: "prices",
 							attributes: ["price"],
 						},
 					],

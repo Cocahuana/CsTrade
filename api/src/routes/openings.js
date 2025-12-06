@@ -79,7 +79,7 @@ router.get("/:id", async (req, res) => {
 					include: [
 						{
 							model: Price,
-							as: "price",
+							as: "prices",
 						},
 					],
 				},
@@ -123,7 +123,7 @@ router.get("/user/:userId", async (req, res) => {
 					include: [
 						{
 							model: Price,
-							as: "price",
+							as: "prices",
 						},
 					],
 				},
@@ -270,7 +270,7 @@ router.get("/recent/all", async (req, res) => {
 					include: [
 						{
 							model: Price,
-							as: "price",
+							as: "prices",
 						},
 					],
 				},

@@ -13,8 +13,16 @@ interface ItemWithPrice {
 	id: number;
 	name: string;
 	rarity?: string;
-	price?: {
-		price: number;
+	startingAt: number | null;
+	availableExteriors: string[];
+	prices: {
+		[exterior: string]: {
+			price: number;
+			lowestPrice: number;
+			medianPrice: number | null;
+			marketHashName: string;
+			imageUrl: string | null;
+		};
 	};
 }
 
@@ -166,10 +174,9 @@ export default function CaseCreator({ userId }: { userId: string }) {
 
 		const expectedValue = customProbs.reduce((sum, item) => {
 			const itemData = availableItems.find((i) => i.id === item.item_id);
-			const price = itemData?.price?.price || 0;
+			const price = itemData?.startingAt || 0;
 			return sum + price * 100 * (item.drop_chance / 100);
 		}, 0);
-
 		const houseEdge = ((casePrice - expectedValue) / casePrice) * 100;
 
 		return {
@@ -501,10 +508,22 @@ export default function CaseCreator({ userId }: { userId: string }) {
 											{item.name}
 										</div>
 										<div className='text-sm text-slate-400'>
-											$
-											{item.price?.price?.toFixed(2) ||
-												"N/A"}
+											{item.startingAt !== null
+												? `$${item.startingAt.toFixed(
+														2
+												  )}`
+												: "$N/A"}
 										</div>
+										{item.availableExteriors.length > 0 && (
+											<div className='text-xs text-slate-500 mt-1'>
+												{item.availableExteriors.length}{" "}
+												variant
+												{item.availableExteriors
+													.length > 1
+													? "s"
+													: ""}
+											</div>
+										)}
 									</div>
 								);
 							})}
@@ -603,10 +622,12 @@ export default function CaseCreator({ userId }: { userId: string }) {
 												{item?.name}
 											</div>
 											<div className='text-slate-400 text-sm'>
-												$
-												{item?.price?.price?.toFixed(
-													2
-												) || "N/A"}
+												{item &&
+												item.startingAt !== null
+													? `$${item.startingAt.toFixed(
+															2
+													  )}`
+													: "$N/A"}
 											</div>
 										</div>
 										<div className='flex items-center gap-2'>

@@ -72,11 +72,11 @@ export default function (sequelize) {
 			as: "collections",
 		});
 
-		// Case Opening associations
-		Item.hasOne(models.Price, {
-			foreignKey: "marketHashName",
+		// Price associations - one item can have multiple prices (one per exterior)
+		Item.hasMany(models.Price, {
+			foreignKey: "itemBaseName",
 			sourceKey: "name",
-			as: "price",
+			as: "prices",
 		});
 
 		Item.hasMany(models.CaseItem, {

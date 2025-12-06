@@ -17,6 +17,13 @@ export default function (sequelize) {
 				comment:
 					'Full item name with exterior (e.g., "AK-47 | The Oligarch (Factory New)")',
 			},
+			itemBaseName: {
+				type: DataTypes.STRING(255),
+				allowNull: true,
+				field: "item_base_name",
+				comment:
+					'Base item name without exterior (e.g., "AK-47 | The Oligarch") - for linking with items table',
+			},
 			exterior: {
 				type: DataTypes.ENUM(
 					"Factory New",
@@ -80,6 +87,9 @@ export default function (sequelize) {
 				{
 					unique: true,
 					fields: ["market_hash_name"],
+				},
+				{
+					fields: ["item_base_name"], // For linking with items
 				},
 				{
 					fields: ["updated_at"], // For cache expiration queries

@@ -166,8 +166,14 @@ router.get("/:id/items", async (req, res, next) => {
 					include: [
 						{
 							model: Price,
-							as: "price",
-							attributes: ["price", "lowestPrice", "medianPrice"],
+							as: "prices",
+							attributes: [
+								"exterior",
+								"price",
+								"lowestPrice",
+								"medianPrice",
+								"marketHashName",
+							],
 						},
 					],
 				},
@@ -183,18 +189,40 @@ router.get("/:id/items", async (req, res, next) => {
 		}
 
 		// Format items for frontend
-		const items = collection.items.map((item) => ({
-			id: item.id,
-			name: item.name,
-			rarity: item.CollectionItem?.rarity || "Unknown",
-			price: item.price
-				? {
-						price: parseFloat(item.price.price),
-						lowestPrice: parseFloat(item.price.lowestPrice),
-						medianPrice: parseFloat(item.price.medianPrice),
-				  }
-				: null,
-		}));
+		const items = collection.items.map((item) => {
+			// Get all prices for this item (all exteriors)
+			const prices = item.prices || [];
+
+			// Calculate starting at price (lowest across all exteriors)
+			const startingAt =
+				prices.length > 0
+					? Math.min(...prices.map((p) => parseFloat(p.price)))
+					: null;
+
+			// Format prices by exterior
+			const pricesByExterior = prices.reduce((acc, price) => {
+				acc[price.exterior] = {
+					price: parseFloat(price.price),
+					lowestPrice: price.lowestPrice
+						? parseFloat(price.lowestPrice)
+						: null,
+					medianPrice: price.medianPrice
+						? parseFloat(price.medianPrice)
+						: null,
+					marketHashName: price.marketHashName,
+				};
+				return acc;
+			}, {});
+
+			return {
+				id: item.id,
+				name: item.name,
+				rarity: item.CollectionItem?.rarity || "Unknown",
+				startingAt,
+				availableExteriors: prices.map((p) => p.exterior),
+				prices: pricesByExterior,
+			};
+		});
 
 		console.log(
 			`  ✅ Found ${items.length} items in collection: ${collection.name}`
